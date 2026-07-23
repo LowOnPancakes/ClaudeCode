@@ -69,3 +69,11 @@ python org_chart_converter.py sample_data/sample_input.xlsx
 pip install pytest
 python -m pytest tests/
 ```
+
+## Web app (browser access for the whole team)
+
+`webapp/` has a Flask front-end over this same converter: drop a file in a
+browser, get a collapsible org chart plus a download link for the wireframe
+workbook - no local Python setup needed for whoever's using it. See
+[`webapp/README.md`](webapp/README.md) for running it locally and deploying
+it somewhere the team can reach.

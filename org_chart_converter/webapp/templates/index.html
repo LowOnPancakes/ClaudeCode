@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Org Chart Wireframe</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f6f8;
+    --card: #ffffff;
+    --text: #1f2430;
+    --muted: #6b7280;
+    --border: #e2e5eb;
+    --accent: #2952e3;
+    --accent-soft: #eef1ff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161b;
+      --card: #1d2027;
+      --text: #e7e9ee;
+      --muted: #9aa1ad;
+      --border: #2b2f38;
+      --accent: #7c9bff;
+      --accent-soft: #202546;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 32px 16px 64px;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  .subtitle { color: var(--muted); margin: 0 0 24px; font-size: 0.95rem; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  .dropzone {
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 32px;
+    text-align: center;
+    color: var(--muted);
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .dropzone.drag { border-color: var(--accent); background: var(--accent-soft); }
+  .dropzone input[type=file] { display: none; }
+  .dropzone label {
+    display: inline-block;
+    background: var(--accent);
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    margin-top: 8px;
+  }
+  #filename { margin-top: 10px; font-size: 0.9rem; }
+  .sheet-row { margin-top: 16px; font-size: 0.9rem; color: var(--muted); }
+  .sheet-row input {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    color: var(--text);
+    margin-left: 6px;
+  }
+  button.submit {
+    margin-top: 16px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 10px 22px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+  }
+  button.submit:disabled { opacity: 0.6; cursor: default; }
+  .error {
+    background: #fdecea;
+    color: #7a271a;
+    border: 1px solid #f5c2bb;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 20px;
+    font-size: 0.9rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    .error { background: #3a1f1c; color: #ffb4a8; border-color: #5c2c26; }
+  }
+  .stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .chip {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+  .warnings {
+    font-size: 0.85rem;
+    color: #b45309;
+    margin-bottom: 16px;
+  }
+  .toolbar {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  .toolbar input[type=search] {
+    flex: 1;
+    min-width: 200px;
+    padding: 9px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.9rem;
+  }
+  a.download {
+    background: #16794f;
+    color: #fff;
+    text-decoration: none;
+    padding: 9px 16px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    white-space: nowrap;
+  }
+  .tree { font-size: 0.92rem; line-height: 1.5; }
+  .node { margin: 2px 0; }
+  .node.leaf {
+    padding: 3px 0 3px 22px;
+    color: var(--text);
+  }
+  .node.manager > details > summary {
+    cursor: pointer;
+    font-weight: 600;
+    padding: 3px 0;
+    list-style: revert;
+  }
+  .node.manager > details > summary::marker { color: var(--muted); }
+  .node.manager > details > .children {
+    margin-left: 20px;
+    padding-left: 12px;
+    border-left: 1px solid var(--border);
+  }
+  .badge {
+    font-weight: 400;
+    color: var(--muted);
+    font-size: 0.78rem;
+    margin-left: 4px;
+  }
+  .hidden { display: none !important; }
+  footer { text-align: center; color: var(--muted); font-size: 0.8rem; margin-top: 24px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Org Chart Wireframe</h1>
+  <p class="subtitle">Drop in a "Manager - Level N / Employee" Excel export and get a browsable reporting tree, plus a downloadable staircase workbook.</p>
+
+  {% if error %}
+    <div class="error">{{ error }}</div>
+  {% endif %}
+
+  <div class="card">
+    <form id="upload-form" action="/convert" method="post" enctype="multipart/form-data">
+      <div class="dropzone" id="dropzone">
+        <div>Drag an .xlsx file here, or</div>
+        <label for="file-input">Choose file</label>
+        <input id="file-input" type="file" name="file" accept=".xlsx" required>
+        <div id="filename"></div>
+      </div>
+      <div class="sheet-row">
+        Worksheet name (optional, defaults to the first sheet):
+        <input type="text" name="sheet" placeholder="Sheet1">
+      </div>
+      <button class="submit" type="submit" id="submit-btn">Convert</button>
+    </form>
+  </div>
+
+  {% if tree_html %}
+  <div class="card">
+    <div class="stats">
+      <span class="chip">{{ stats.people }} people</span>
+      <span class="chip">{{ stats.roots }} top-level root(s)</span>
+      <span class="chip">{{ stats.depth }} levels deep</span>
+      <span class="chip">{{ stats.rows_used }}/{{ stats.rows_read }} rows used</span>
+    </div>
+    {% if stats.warnings %}
+      <div class="warnings">
+        {{ stats.warnings|length }} data warning(s):
+        <ul>
+          {% for w in stats.warnings %}<li>{{ w }}</li>{% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+    <div class="toolbar">
+      <input type="search" id="search" placeholder="Search for a person...">
+      <a class="download"
+         href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{{ xlsx_b64 }}"
+         download="{{ download_name }}">Download Excel wireframe</a>
+    </div>
+    <div class="tree" id="tree">
+      {{ tree_html|safe }}
+    </div>
+  </div>
+  {% endif %}
+
+  <footer>Runs entirely on this server request - the uploaded file isn't saved to disk.</footer>
+</div>
+
+<script>
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('file-input');
+  const filenameLabel = document.getElementById('filename');
+  const form = document.getElementById('upload-form');
+  const submitBtn = document.getElementById('submit-btn');
+
+  fileInput.addEventListener('change', () => {
+    filenameLabel.textContent = fileInput.files[0] ? fileInput.files[0].name : '';
+  });
+
+  ['dragenter', 'dragover'].forEach(evt =>
+    dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.add('drag'); })
+  );
+  ['dragleave', 'drop'].forEach(evt =>
+    dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.remove('drag'); })
+  );
+  dropzone.addEventListener('drop', e => {
+    if (e.dataTransfer.files.length) {
+      fileInput.files = e.dataTransfer.files;
+      filenameLabel.textContent = e.dataTransfer.files[0].name;
+    }
+  });
+
+  form.addEventListener('submit', () => {
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Converting...';
+  });
+
+  const searchBox = document.getElementById('search');
+  if (searchBox) {
+    function filterNode(el, query) {
+      const name = el.dataset.name || '';
+      const selfMatch = query === '' || name.includes(query);
+      let anyChildMatch = false;
+
+      if (el.classList.contains('manager')) {
+        const details = el.querySelector(':scope > details');
+        const childWrap = details.querySelector(':scope > .children');
+        Array.from(childWrap.children).forEach(child => {
+          if (filterNode(child, query)) anyChildMatch = true;
+        });
+        const show = selfMatch || anyChildMatch;
+        el.classList.toggle('hidden', !show);
+        if (query !== '' && show) details.open = true;
+        else if (query === '') details.open = (el.parentElement && el.parentElement.id === 'tree');
+        return show;
+      } else {
+        el.classList.toggle('hidden', !selfMatch);
+        return selfMatch;
+      }
+    }
+
+    searchBox.addEventListener('input', () => {
+      const query = searchBox.value.trim().toLowerCase();
+      Array.from(document.getElementById('tree').children).forEach(node => filterNode(node, query));
+    });
+  }
+</script>
+</body>
+</html>
