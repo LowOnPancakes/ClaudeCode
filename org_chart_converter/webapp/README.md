@@ -49,6 +49,46 @@ This wasn't runnable in the sandbox this was built in (no Docker daemon
 available there), so double-check the build once on a machine with Docker
 before relying on it.
 
+### Deploying via cPanel (e.g. a domain like tacoknight.com)
+
+Most cPanel hosts run Python apps through Phusion Passenger via a **"Setup
+Python App"** tool (sometimes labeled "Python Selector" or "Application
+Manager") under the Software section. `passenger_wsgi.py` in this folder is
+the entry point it looks for.
+
+1. In cPanel, open **Setup Python App** and click **Create Application**.
+2. Set:
+   - **Python version**: 3.9+ (whatever's newest available)
+   - **Application root**: a folder name, e.g. `orgchart` — cPanel creates
+     `~/orgchart` and a matching virtualenv
+   - **Application URL**: either a subdomain (e.g. `orgchart.tacoknight.com`
+     — simplest option) or a path (e.g. `tacoknight.com/orgchart`)
+   - **Application startup file**: `passenger_wsgi.py`
+   - **Application Entry point**: `application`
+3. Click **Create**. cPanel shows a command like:
+   ```
+   source /home/<user>/virtualenv/orgchart/3.9/bin/activate && cd /home/<user>/orgchart
+   ```
+   Copy it — you'll run it over SSH (or the cPanel **Terminal** app if SSH
+   isn't enabled) any time you need to install/update dependencies.
+4. Upload these files into that application root (File Manager, or SFTP)
+   **flattened into one directory** (no `webapp/` subfolder):
+   - `app.py`, `passenger_wsgi.py`, `requirements.txt`, `templates/` (from
+     this `webapp/` folder)
+   - `org_chart_converter.py` (from the parent folder, one level up)
+5. Run the activation command from step 3, then:
+   ```bash
+   pip install -r requirements.txt
+   ```
+6. Back in cPanel's Setup Python App page, click **Restart**.
+7. Visit the Application URL you chose in step 2.
+
+Exact wording varies a little by host, but "Setup Python App" + Passenger is
+the standard cPanel pattern this follows. If your specific cPanel skin
+doesn't have that tool, your host doesn't support Python apps and you'd need
+a different approach (e.g. a subdomain proxied to a small VM running
+gunicorn instead).
+
 ### Where to actually host it
 
 Pick whatever your team already uses to run small internal tools - a shared

@@ -21,7 +21,12 @@ from html import escape
 
 from flask import Flask, render_template, request
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+_HERE = os.path.dirname(os.path.abspath(__file__))
+# org_chart_converter.py normally lives one directory up (repo layout), but
+# some deployment methods (e.g. cPanel's Setup Python App) flatten everything
+# into one directory - support both.
+sys.path.insert(0, _HERE)
+sys.path.insert(0, os.path.join(_HERE, ".."))
 from org_chart_converter import build_forest, max_depth, parse_workbook, write_org_chart  # noqa: E402
 
 app = Flask(__name__)
