@@ -1,0 +1,31 @@
+employee_id,name,department,job_title,level,hire_date,current_salary,range_min,range_mid,range_max,supervisor_rating,objective_score,last_raise_date,critical_role,market_demand,internal_equity_flag,retention_notes
+E001,Maria Chen,Engineering,Senior Software Engineer,Senior,2019-03-04,128000,112000,130000,148000,4.6,89,2025-01-15,N,High,N,
+E002,David Okafor,Technical Operations,NOC Technician,I,2025-09-01,41000,42000,49000,56000,3.4,68,,N,Low,N,
+E003,Priya Natarajan,Infrastructure/SysAdmin,Site Reliability Engineer,Senior,2017-02-10,152000,118000,138000,158000,4.8,93,2024-03-01,Y,High,N,Recently approached by a recruiter for a competitor SRE role
+E004,Brandon Wells,Customer Support,Hosting Support Specialist,I (Tier 1),2026-02-01,37000,38000,44000,50000,3.0,60,,N,Low,N,
+E005,Angela Torres,Sales,Account Executive,Mid,2021-05-01,58000,55000,65000,75000,4.0,82,2024-06-01,N,Medium,N,
+E006,Jordan Blake,Marketing,Marketing Specialist,Mid,2023-01-10,61000,50000,58000,66000,3.2,55,2025-01-10,N,Low,N,
+E007,Rachel Kim,Product,Senior Product Manager,Senior,2020-08-15,148000,125000,145000,165000,4.7,91,2025-02-01,Y,High,N,
+E008,Miguel Santos,Infrastructure/SysAdmin,Systems Administrator,II,2018-04-01,66000,68000,80000,92000,3.6,65,2023-11-01,N,Medium,N,
+E009,Sophia Nguyen,Data,Data Engineer,Mid,2022-09-01,108000,100000,117000,134000,4.3,87,2024-09-01,Y,High,N,Actively interviewing per manager 1:1 notes
+E010,Ethan Brooks,Engineering,Staff Software Engineer,Staff,2015-01-01,175000,138000,160000,182000,4.9,95,2025-06-01,Y,High,N,
+E011,Grace Liu,Customer Success,Customer Success Manager,Mid,2023-03-01,60000,58000,68000,78000,3.8,74,2025-03-01,N,Medium,N,
+E012,Tyler Anderson,Sales,Sales Development Rep,I,2025-11-01,44000,42000,50000,58000,3.5,71,,N,Low,N,
+E013,Olivia Martinez,Legal,Corporate Counsel,Senior,2019-07-01,145000,110000,130000,150000,4.2,80,2024-01-01,Y,Medium,N,
+E014,Noah Peterson,Technical Operations,NOC Technician,II,2020-02-01,63000,50000,58000,66000,3.1,52,2023-05-01,N,Low,Y,Equity review: paid above peers with similar tenure and performance
+E015,Isabella Rossi,Finance,Financial Analyst,Mid,2021-10-01,76000,62000,72000,82000,4.0,78,2024-10-01,N,Medium,N,
+E016,Liam O'Connor,Finance,Staff Accountant,Mid,2022-02-01,51000,52000,60000,68000,3.3,58,2024-02-01,N,Low,N,
+E017,Emma Wilson,People/HR,HR Business Partner,Senior,2018-09-01,95000,78000,90000,102000,4.4,84,2025-04-01,N,Medium,N,
+E018,Lucas Garcia,People/HR,HR Generalist,Mid,2024-01-15,57000,55000,64000,73000,3.7,66,,N,Low,N,
+E019,Chloe Davis,Product,Product Designer,Mid,2022-06-01,88000,85000,99000,113000,4.1,79,2024-06-01,N,Medium,N,
+E020,Mason Lee,Marketing,Content/Demand Gen Manager,Senior,2020-11-01,89000,68000,80000,92000,4.6,90,2025-05-01,N,Medium,N,
+E021,Ava Thompson,Sales,Senior Account Executive,Senior,2019-01-01,74000,70000,82000,94000,4.5,88,2023-08-01,N,High,N,Top quota attainment three years running; recruiter contact reported by employee
+E022,Benjamin Clark,Infrastructure/SysAdmin,Cloud Solutions Engineer,Mid,2023-08-01,112000,90000,105000,120000,3.9,76,2025-02-01,N,High,N,
+E023,Mia Rodriguez,Customer Support,Hosting Support Specialist,II (Tier 2),2021-01-01,50000,46000,54000,62000,4.3,85,2024-01-01,N,Medium,Y,Equity review: highest performer on team but 2nd-lowest paid among Tier 2 peers
+E024,Daniel Kim,Technical Operations,Data Center Technician,Mid,2020-05-01,58000,48000,56000,64000,3.6,63,2023-06-01,N,Low,N,
+E025,Natalie Brown,Product,Product Manager,Mid,2024-04-01,104000,100000,117000,134000,3.9,73,,N,Medium,N,
+E026,James Wright,Engineering,Software Engineer,II,2023-02-01,118000,88000,103000,118000,3.0,48,2024-08-01,N,Medium,N,
+E027,Ella Moore,Sales,Renewals Specialist,Mid,2022-11-01,66000,48000,56000,64000,4.0,81,2024-05-01,N,Low,N,
+E028,Henry Scott,Data,Data Analyst,Mid,2025-03-01,70000,68000,79000,90000,2.8,91,,N,Medium,N,
+E029,Zoe Adams,Customer Success,Technical Account Manager,Mid,2021-08-01,80000,65000,78000,91000,4.8,55,2024-11-01,N,Medium,N,
+E030,Owen Baker,Leadership,Director,Director,2017-05-01,172000,130000,150000,170000,4.5,87,2025-03-01,Y,High,N,

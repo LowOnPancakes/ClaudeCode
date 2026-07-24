@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compensation Planning Dashboard</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top-bar">
+    <div>
+      <h1>Compensation Planning Dashboard</h1>
+      <p class="subtitle">SaaS / web-hosting compensation review — as of {{ as_of }}. Internal planning tool: nothing here is a final pay decision or a legal determination.</p>
+    </div>
+    <div class="top-actions">
+      <a class="btn secondary" href="{{ url_for('export_csv') }}">Export CSV</a>
+      <form method="post" action="{{ url_for('reset_demo_data') }}" onsubmit="return confirm('Reset all data back to the original sample set? Any edits and overrides will be lost.');">
+        <button class="secondary" type="submit">Reset demo data</button>
+      </form>
+    </div>
+  </div>
+
+  {% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+  <!-- ================= Summary ================= -->
+  <div class="stat-grid">
+    <div class="stat-tile"><div class="value">{{ summary.total_current_payroll|money }}</div><div class="label">Total current payroll ({{ summary.headcount }} employees)</div></div>
+    <div class="stat-tile"><div class="value">{{ summary.total_funded_budget|money }}</div><div class="label">Recommended raise budget (this scenario)</div></div>
+    <div class="stat-tile"><div class="value">{{ summary.overall_payroll_increase_pct|pct(2) }}</div><div class="label">Overall payroll increase</div></div>
+    <div class="stat-tile"><div class="value">{{ summary.total_deferred|money }}</div><div class="label">Deferred due to budget limits</div></div>
+    <div class="stat-tile {% if summary.count_below_min %}critical{% endif %}"><div class="value">{{ summary.count_below_min }}</div><div class="label">Below range minimum</div></div>
+    <div class="stat-tile {% if summary.count_above_max %}warn{% endif %}"><div class="value">{{ summary.count_above_max }}</div><div class="label">Above range maximum</div></div>
+    <div class="stat-tile {% if summary.count_compa_below_threshold %}warn{% endif %}"><div class="value">{{ summary.count_compa_below_threshold }}</div><div class="label">Compa-ratio below {{ (config.compa_ratio_low_threshold * 100)|round|int }}%</div></div>
+    <div class="stat-tile {% if summary.count_high_critical_flight_risk %}critical{% endif %}"><div class="value">{{ summary.count_high_critical_flight_risk }}</div><div class="label">High / Critical flight risk</div></div>
+    <div class="stat-tile {% if summary.count_equity_concerns %}warn{% endif %}"><div class="value">{{ summary.count_equity_concerns }}</div><div class="label">Pay-equity concerns flagged for review</div></div>
+    <div class="stat-tile {% if summary.count_requires_review %}warn{% endif %}"><div class="value">{{ summary.count_requires_review }}</div><div class="label">Recommendations requiring HR review</div></div>
+    <div class="stat-tile {% if summary.count_data_quality_issues or incomplete %}warn{% endif %}"><div class="value">{{ summary.count_data_quality_issues + incomplete|length }}</div><div class="label">Incomplete / unreliable records</div></div>
+  </div>
+
+  <!-- ================= Charts ================= -->
+  <div class="card">
+    <h2>Dashboard summaries</h2>
+    <div class="chart-grid">
+      <div><h3>Recommended raises by department</h3><div id="chart-dept"></div></div>
+      <div><h3>Recommended raises by performance level</h3><div id="chart-perf"></div></div>
+      <div><h3>Recommended raises by priority</h3><div id="chart-priority"></div></div>
+      <div><h3>Immediate vs. phased adjustment cost</h3><div id="chart-immediate-phased"></div></div>
+      <div><h3>Compa-ratio distribution: before vs. after</h3><div id="chart-compa"></div></div>
+      <div><h3>Salary-position distribution: before vs. after</h3><div id="chart-position"></div></div>
+      <div><h3>Flight-risk distribution</h3><div id="chart-flight-risk"></div></div>
+    </div>
+  </div>
+
+  <!-- ================= Scenario + Weights ================= -->
+  <details class="panel card" open>
+    <summary>Scenario planning &amp; adjustable weights</summary>
+
+    <h3>Budget scenario</h3>
+    <p class="section-note">Choose how raises are funded. Presets bound who is eligible (by priority tier) and the max individual raise — they do not just apply one flat percentage to everyone.</p>
+    <form class="inline-form" method="post" action="{{ url_for('update_scenario') }}">
+      <div class="scenario-options">
+        {% for key, label in [("no_budget","No fixed budget"), ("fixed_budget","Fixed budget ($)"), ("conservative","Conservative"), ("moderate","Moderate"), ("aggressive","Aggressive market correction")] %}
+        <label class="scenario-option {% if scenario.name == key %}selected{% endif %}">
+          <input type="radio" name="scenario_name" value="{{ key }}" {% if scenario.name == key %}checked{% endif %} onchange="this.form.requestSubmit ? null : null">
+          {{ label }}
+        </label>
+        {% endfor %}
+      </div>
+      <div class="field">
+        <label for="budget_amount">Budget amount (only used for "Fixed budget")</label>
+        <input type="number" step="1000" min="0" id="budget_amount" name="budget_amount" value="{{ scenario.budget or '' }}" placeholder="e.g. 150000">
+      </div>
+      <button type="submit">Apply scenario</button>
+    </form>
+
+    <h3 style="margin-top:20px;">Weights &amp; thresholds</h3>
+    <p class="section-note">These defaults are documented assumptions, not settled policy — adjust them to match your organization's philosophy. See docs/ASSUMPTIONS.md.</p>
+    <form class="inline-form" method="post" action="{{ url_for('update_weights') }}">
+      <div class="weights-grid">
+        <div class="field">
+          <label for="w_sup">Supervisor-rating weight ({{ config.performance.weight_supervisor }})</label>
+          <input type="range" min="0" max="1" step="0.05" id="w_sup" name="performance.weight_supervisor" value="{{ config.performance.weight_supervisor }}">
+          <span class="range-value" id="w_sup-value"></span>
+        </div>
+        <div class="field">
+          <label for="w_obj">Objective-score weight ({{ config.performance.weight_objective }})</label>
+          <input type="range" min="0" max="1" step="0.05" id="w_obj" name="performance.weight_objective" value="{{ config.performance.weight_objective }}">
+          <span class="range-value" id="w_obj-value"></span>
+        </div>
+        <div class="field">
+          <label for="divergence">Rating-divergence flag threshold (points)</label>
+          <input type="number" id="divergence" name="performance.divergence_flag_points" value="{{ config.performance.divergence_flag_points }}">
+        </div>
+        <div class="field">
+          <label for="band_half">Expected-position band half-width (points)</label>
+          <input type="number" id="band_half" name="position_model.band_half_width_pts" value="{{ config.position_model.band_half_width_pts }}">
+        </div>
+        <div class="field">
+          <label for="std_cap">Standard raise cap (%)</label>
+          <input type="number" id="std_cap" name="raise_model.standard_cap_pct" value="{{ config.raise_model.standard_cap_pct }}">
+        </div>
+        <div class="field">
+          <label for="exc_cap">Exception raise cap (%)</label>
+          <input type="number" id="exc_cap" name="raise_model.exception_cap_pct" value="{{ config.raise_model.exception_cap_pct }}">
+        </div>
+        <div class="field">
+          <label for="gap_pts">"Significant gap" threshold (points)</label>
+          <input type="number" id="gap_pts" name="raise_model.significant_gap_pts" value="{{ config.raise_model.significant_gap_pts }}">
+        </div>
+        <div class="field">
+          <label for="long_cycle">Delayed-adjustment threshold (months)</label>
+          <input type="number" id="long_cycle" name="raise_model.long_cycle_months" value="{{ config.raise_model.long_cycle_months }}">
+        </div>
+        <div class="field">
+          <label for="compa_low">Compa-ratio "low" threshold</label>
+          <input type="number" step="0.01" id="compa_low" name="compa_ratio_low_threshold" value="{{ config.compa_ratio_low_threshold }}">
+        </div>
+        <div class="field">
+          <label for="compa_high">Compa-ratio "high" threshold</label>
+          <input type="number" step="0.01" id="compa_high" name="compa_ratio_high_threshold" value="{{ config.compa_ratio_high_threshold }}">
+        </div>
+      </div>
+
+      <h3 style="margin-top:4px;">Flight-risk factor weights</h3>
+      <div class="weights-grid">
+        {% for key, label in [
+          ("comp_position","Salary position in range"),
+          ("compa_ratio_gap","Compa-ratio gap vs. expected"),
+          ("time_since_raise","Time since last raise"),
+          ("performance_pay_mismatch","High performer / low pay mismatch"),
+          ("tenure_curve","Tenure curve"),
+          ("market_demand","Market demand (manual, subjective)"),
+          ("retention_notes","Retention notes present (manual, subjective)"),
+        ] %}
+        <div class="field">
+          <label for="fr_{{ key }}">{{ label }} ({{ config.flight_risk.weights[key] }})</label>
+          <input type="range" min="0" max="0.4" step="0.01" id="fr_{{ key }}" name="flight_risk.weights.{{ key }}" value="{{ config.flight_risk.weights[key] }}">
+          <span class="range-value" id="fr_{{ key }}-value"></span>
+        </div>
+        {% endfor %}
+      </div>
+      <p class="hint">The last two factors above are manager-entered judgment, not measured data — they are shown separately in each employee's flight-risk detail so measurable comp risk is never conflated with subjective retention opinion.</p>
+      <div style="display:flex; gap:10px;">
+        <button type="submit">Save weights</button>
+      </div>
+    </form>
+    <form method="post" action="{{ url_for('reset_weights') }}" style="margin-top:8px;">
+      <button class="secondary" type="submit">Reset weights to defaults</button>
+    </form>
+  </details>
+
+  <!-- ================= Governance ================= -->
+  <details class="panel card">
+    <summary>Governance &amp; data-quality flags</summary>
+    <ul class="plain">
+      <li>Performance is one of several inputs — priority and raise size also depend on range position, tenure, criticality, and equity, so a high performance score alone does not guarantee a large raise.</li>
+      <li>Pay-equity concerns (manual flag or computed peer-group gap) are surfaced for HR/compensation review. This tool does not make a legal pay-equity determination.</li>
+      <li>Protected characteristics (age, race, gender, disability, etc.) are not collected or used anywhere in this model.</li>
+      <li>Supervisor ratings and objective performance-metric scores are kept in separate columns throughout — they are only ever blended into a labeled "combined score," never silently merged.</li>
+      <li>Any HR override requires a written justification, which is stored alongside the system recommendation for audit.</li>
+    </ul>
+    {% if incomplete %}
+    <h3 style="margin-top:14px;">Excluded from calculations — missing required fields</h3>
+    <ul class="plain">
+      {% for item in incomplete %}
+      <li><strong>{{ item.employee.name or item.employee.employee_id or "Unnamed row" }}</strong>: missing {{ item.missing_fields|join(", ") }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% set dq = records|selectattr("data_quality_flags")|list %}
+    {% if dq %}
+    <h3 style="margin-top:14px;">Included, but with missing optional fields</h3>
+    <ul class="plain">
+      {% for r in dq %}
+      <li>{{ r.name }}: missing {{ r.data_quality_flags|join(", ") }} — combined score / flight risk may be less reliable.</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </details>
+
+  <!-- ================= Employee table ================= -->
+  <div class="card">
+    <h2>Employee-level detail</h2>
+    <div class="toolbar">
+      <input type="search" id="search" placeholder="Search name, department, role…">
+      <select id="filter-department">
+        <option value="">All departments</option>
+        {% for d in departments %}<option value="{{ d }}">{{ d }}</option>{% endfor %}
+      </select>
+      <select id="filter-risk">
+        <option value="">All flight-risk levels</option>
+        {% for r in ["Low","Moderate","High","Critical"] %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+      </select>
+      <select id="filter-priority">
+        <option value="">All priority levels</option>
+        {% for p, label in priority_labels.items() %}<option value="{{ p }}">P{{ p }}: {{ label }}</option>{% endfor %}
+      </select>
+      <label class="check"><input type="checkbox" id="filter-review-only"> Needs review only</label>
+    </div>
+
+    <div class="table-scroll">
+    <table class="emp-table">
+      <thead>
+        <tr>
+          <th>Employee</th><th>Role</th>
+          <th>Current Salary</th><th>Range Min</th><th>Range Mid</th><th>Range Max</th>
+          <th>Salary Position</th><th>Compa-Ratio</th>
+          <th>Supervisor Rating</th><th>Objective Score</th><th>Combined Score</th>
+          <th>Flight Risk</th>
+          <th>Reco. Raise %</th><th>Reco. Raise $</th>
+          <th>Proposed Salary</th><th>New Compa-Ratio</th><th>New Position</th>
+          <th>Priority</th><th>Timing</th><th>Business Justification</th><th>Review?</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in records %}
+        <tr data-search="{{ (r.name ~ ' ' ~ r.department ~ ' ' ~ r.job_title)|lower }}"
+            data-department="{{ r.department }}" data-risk="{{ r.flight_risk.rating }}"
+            data-priority="{{ r.raise.priority_tier }}" data-review="{{ 1 if r.raise.requires_review else 0 }}">
+          <td>
+            <strong>{{ r.name }}</strong> <span class="hint">{{ r.employee_id }}</span><br>
+            {% if r.critical_role %}<span class="badge tag">Critical role</span>{% endif %}
+            {% if r.equity_concern %}<span class="badge tag equity">Equity flag</span>{% endif %}
+          </td>
+          <td>{{ r.job_title }}<br><span class="hint">{{ r.department }}{% if r.level %} · {{ r.level }}{% endif %}</span></td>
+          <td>{{ r.current_salary|money }}</td>
+          <td>{{ r.range_min|money }}</td>
+          <td>{{ r.range_mid|money }}</td>
+          <td>{{ r.range_max|money }}</td>
+          <td>
+            {{ r.position_pct|ratio_pct if r.position_pct is not none else "—" }}
+            <br><span class="badge pos-{{ r.position_category|slug }}">{{ r.position_category }}</span>
+          </td>
+          <td>{{ r.compa_ratio|num(2) }} ({{ r.compa_ratio|ratio_pct }})</td>
+          <td>{{ r.supervisor_rating if r.supervisor_rating is not none else "—" }}</td>
+          <td>{{ r.objective_score if r.objective_score is not none else "—" }}</td>
+          <td>
+            {{ r.performance.combined_score|num(1) if r.performance.combined_score is not none else "—" }}
+            <span class="hint">({{ r.performance.tier }})</span>
+            {% if r.performance.divergence_flag %}<br><span class="badge tag review" title="{{ r.performance.divergence_direction }}">⚠ rating divergence</span>{% endif %}
+          </td>
+          <td><span class="badge risk-{{ r.flight_risk.rating|slug }}">{{ r.flight_risk.rating }}</span>
+            <br><span class="hint" title="Measurable (comp/tenure) risk score, kept separate from subjective manager input">meas. {{ r.flight_risk.measurable_score }} / subj. {{ r.flight_risk.subjective_score }}</span>
+          </td>
+          <td>
+            {{ r.funded_pct|pct }}
+            {% if r.override %}<br><span class="hint" title="System recommended {{ r.system_funded_pct }}%">(HR override, was {{ r.system_funded_pct }}%)</span>{% endif %}
+          </td>
+          <td>{{ r.funded_amount|money }}</td>
+          <td>{{ r.scenario_new_salary|money }}</td>
+          <td>{{ r.scenario_new_compa_ratio|num(2) }}</td>
+          <td>{{ r.scenario_new_position_pct|ratio_pct if r.scenario_new_position_pct is not none else "—" }}
+            <br><span class="badge pos-{{ r.scenario_new_position_category|slug }}">{{ r.scenario_new_position_category }}</span>
+          </td>
+          <td><span class="badge tag">P{{ r.raise.priority_tier }}</span><br><span class="hint">{{ r.raise.priority_label }}</span></td>
+          <td>{{ r.raise.adjustment_timing }}
+            {% if r.raise.phased %}<br><span class="hint">+{{ r.raise.phase2_pct }}% in ~{{ r.raise.phase2_timing_months }}mo</span>{% endif %}
+          </td>
+          <td class="wrap-cell">{{ r.raise.business_justification }}</td>
+          <td>
+            {% if r.raise.requires_review %}<span class="badge tag review" title="{{ r.raise.requires_review_reasons|join('; ') }}">Yes</span>{% else %}No{% endif %}
+          </td>
+          <td>
+            <button class="secondary small" type="button"
+              data-edit-employee='{{ {"employee_id": r.employee_id, "name": r.name, "department": r.department, "job_title": r.job_title, "level": r.level, "hire_date": r.hire_date.isoformat() if r.hire_date else "", "current_salary": r.current_salary, "range_min": r.range_min, "range_mid": r.range_mid, "range_max": r.range_max, "supervisor_rating": r.supervisor_rating, "objective_score": r.objective_score, "last_raise_date": r.last_raise_date.isoformat() if r.last_raise_date else "", "critical_role": "Y" if r.critical_role else "N", "internal_equity_flag": "Y" if r.internal_equity_flag else "N", "market_demand": r.market_demand, "retention_notes": r.retention_notes}|tojson }}'>Edit</button>
+            <button class="secondary small" type="button"
+              data-override-employee='{{ {"employee_id": r.employee_id, "name": r.name, "system_pct": r.system_funded_pct, "system_amount": r.system_funded_amount|round(0)|int}|tojson }}'>Override</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  <!-- ================= Add / Edit employee ================= -->
+  <details class="panel card" id="employee-panel">
+    <summary>Add / edit employee</summary>
+    <p class="section-note">Editing an existing employee: use the "Edit" button on their row to prefill this form (matches by Employee ID). Leave Employee ID blank to add a new employee.</p>
+    <form id="employee-form" class="inline-form" method="post" action="{{ url_for('upsert_employee') }}">
+      <div class="form-grid" style="width:100%;">
+        <div class="field"><label>Employee ID (blank = new)</label><input name="employee_id"></div>
+        <div class="field"><label>Name</label><input name="name" required></div>
+        <div class="field"><label>Department</label><input name="department" required></div>
+        <div class="field"><label>Job title</label><input name="job_title" required></div>
+        <div class="field"><label>Level</label><input name="level"></div>
+        <div class="field"><label>Hire date</label><input type="date" name="hire_date"></div>
+        <div class="field"><label>Current salary</label><input type="number" step="100" name="current_salary" required></div>
+        <div class="field"><label>Range minimum</label><input type="number" step="100" name="range_min" required></div>
+        <div class="field"><label>Range midpoint</label><input type="number" step="100" name="range_mid" required></div>
+        <div class="field"><label>Range maximum</label><input type="number" step="100" name="range_max" required></div>
+        <div class="field"><label>Supervisor rating (1–5)</label><input type="number" step="0.1" min="1" max="5" name="supervisor_rating"></div>
+        <div class="field"><label>Objective score (0–100)</label><input type="number" step="1" min="0" max="100" name="objective_score"></div>
+        <div class="field"><label>Last raise date</label><input type="date" name="last_raise_date"></div>
+        <div class="field"><label>Market demand for skills</label>
+          <select name="market_demand"><option>Low</option><option>Medium</option><option>High</option></select>
+        </div>
+        <div class="field checkbox"><label><input type="checkbox" name="critical_role"> Critical / hard-to-replace role</label></div>
+        <div class="field checkbox"><label><input type="checkbox" name="internal_equity_flag"> Manually flag internal-equity concern</label></div>
+        <textarea name="retention_notes" placeholder="Any known retention/market-risk factors (free text, subjective — kept separate from measured comp data)"></textarea>
+      </div>
+      <button type="submit">Save employee</button>
+    </form>
+  </details>
+
+  <!-- ================= HR override ================= -->
+  <details class="panel card" id="override-panel">
+    <summary>HR override</summary>
+    <p class="section-note">Use this to override the system-generated raise recommendation. A written justification is required and is stored with the system's original recommendation for audit — overrides never silently replace the model's output.</p>
+    <p id="override-context" class="hint"></p>
+    <form id="override-form" class="inline-form" method="post" action="{{ url_for('submit_override') }}">
+      <div class="field"><label>Employee ID</label><input name="employee_id" required></div>
+      <div class="field"><label>Override raise %</label><input type="number" step="0.1" name="override_pct" required></div>
+      <div class="field"><label>Approver</label><input name="approver" placeholder="Name / title"></div>
+      <div class="field" style="flex:1; min-width:260px;"><label>Written justification (required)</label><textarea name="justification" required></textarea></div>
+      <button type="submit">Save override</button>
+    </form>
+  </details>
+
+  <!-- ================= Reference pay bands ================= -->
+  <details class="panel card">
+    <summary>Reference: SaaS / web-hosting pay bands</summary>
+    <p class="section-note">Illustrative starting bands for a US-based, remote-friendly, mid-market SaaS/web-hosting company — not geo-adjusted, not a substitute for a licensed compensation survey. See docs/ASSUMPTIONS.md. Replace with your organization's actual bands.</p>
+    <div class="table-scroll">
+    <table class="emp-table">
+      <thead><tr><th>Department</th><th>Job Title</th><th>Level</th><th>Min</th><th>Mid</th><th>Max</th><th>Notes</th></tr></thead>
+      <tbody>
+        {% for b in bands %}
+        <tr><td>{{ b.department }}</td><td>{{ b.job_title }}</td><td>{{ b.level }}</td>
+          <td>{{ b.range_min|int|money }}</td><td>{{ b.range_mid|int|money }}</td><td>{{ b.range_max|int|money }}</td>
+          <td class="wrap-cell">{{ b.notes }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </details>
+
+  <footer class="page-footer">
+    Compensation planning dashboard — internal tool. Formulas &amp; methodology: see docs/ in the repository.
+  </footer>
+</div>
+
+<script id="chart-data" type="application/json">{{ chart_data_json|safe }}</script>
+<script src="{{ url_for('static', filename='dashboard.js') }}"></script>
+</body>
+</html>

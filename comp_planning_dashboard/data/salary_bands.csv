@@ -1,0 +1,43 @@
+department,job_title,level,range_min,range_mid,range_max,notes
+Customer Support,Hosting Support Specialist,I (Tier 1),38000,44000,50000,24/7 shift coverage typical
+Customer Support,Hosting Support Specialist,II (Tier 2),46000,54000,62000,Escalations / advanced troubleshooting
+Customer Support,Hosting Support Specialist,III (Tier 3),56000,66000,76000,Senior escalations, on-call
+Customer Success,Technical Account Manager,Mid,65000,78000,91000,Named-account technical relationship owner
+Customer Success,Customer Success Manager,Mid,58000,68000,78000,
+Customer Success,Customer Success Manager,Senior,72000,84000,96000,
+Technical Operations,NOC Technician,I,42000,49000,56000,24/7 shift coverage typical
+Technical Operations,NOC Technician,II,50000,58000,66000,
+Technical Operations,Data Center Technician,Mid,48000,56000,64000,On-site hands-on-hardware
+Infrastructure/SysAdmin,Systems Administrator,I,55000,65000,75000,
+Infrastructure/SysAdmin,Systems Administrator,II,68000,80000,92000,
+Infrastructure/SysAdmin,Senior Systems Administrator,Senior,82000,96000,110000,
+Infrastructure/SysAdmin,Site Reliability Engineer,Mid,95000,112000,130000,
+Infrastructure/SysAdmin,Site Reliability Engineer,Senior,118000,138000,158000,Frequently business-critical / difficult to backfill
+Infrastructure/SysAdmin,Cloud Solutions Engineer,Mid,90000,105000,120000,
+Infrastructure/SysAdmin,Network Engineer,Mid,80000,94000,108000,
+Engineering,Software Engineer,I,70000,82000,94000,
+Engineering,Software Engineer,II,88000,103000,118000,
+Engineering,Senior Software Engineer,Senior,112000,130000,148000,
+Engineering,Staff Software Engineer,Staff,138000,160000,182000,Hot external market for this skillset
+Engineering,Engineering Manager,Manager,140000,162000,184000,
+Engineering,QA Engineer,Mid,72000,84000,96000,
+Product,Product Manager,Mid,100000,117000,134000,
+Product,Senior Product Manager,Senior,125000,145000,165000,
+Product,Product Designer,Mid,85000,99000,113000,
+Data,Data Analyst,Mid,68000,79000,90000,
+Data,Data Engineer,Mid,100000,117000,134000,Hot external market for this skillset
+Sales,Sales Development Rep,I,42000,50000,58000,Base only; variable comp tracked separately
+Sales,Account Executive,Mid,55000,65000,75000,Base only; OTE roughly 2x base
+Sales,Senior Account Executive,Senior,70000,82000,94000,Base only; OTE roughly 2x base
+Sales,Renewals Specialist,Mid,48000,56000,64000,
+Marketing,Marketing Specialist,Mid,50000,58000,66000,
+Marketing,Content/Demand Gen Manager,Senior,68000,80000,92000,
+Marketing,Marketing Director,Director,105000,125000,145000,
+Finance,Staff Accountant,Mid,52000,60000,68000,
+Finance,Financial Analyst,Mid,62000,72000,82000,
+Finance,Controller,Senior,100000,118000,136000,
+People/HR,HR Generalist,Mid,55000,64000,73000,
+People/HR,HR Business Partner,Senior,78000,90000,102000,
+Legal,Corporate Counsel,Senior,110000,130000,150000,
+Leadership,Director,Director,130000,150000,170000,
+Leadership,VP,VP,165000,195000,225000,

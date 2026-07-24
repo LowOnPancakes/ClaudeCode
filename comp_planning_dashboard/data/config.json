@@ -1,0 +1,70 @@
+{
+  "_comment": "All thresholds/weights here are adjustable starting assumptions - see docs/ASSUMPTIONS.md. Edit this file (or the Weights & Scenarios panel in the dashboard) to match your organization's philosophy.",
+
+  "performance": {
+    "supervisor_scale_max": 5,
+    "objective_scale_max": 100,
+    "weight_supervisor": 0.5,
+    "weight_objective": 0.5,
+    "divergence_flag_points": 20,
+    "tiers": [
+      {"name": "Top", "floor": 90},
+      {"name": "High", "floor": 75},
+      {"name": "Solid", "floor": 60},
+      {"name": "Developing", "floor": 45},
+      {"name": "Low", "floor": 0}
+    ]
+  },
+
+  "position_model": {
+    "_comment": "Defines each employee's *expected* compa-ratio band instead of assuming everyone should sit at 100% of midpoint.",
+    "band_half_width_pts": 7.5,
+    "performance_shift_pts": {"Top": 12, "High": 6, "Solid": 0, "Developing": -6, "Low": -12},
+    "tenure_shift_pts": [
+      {"max_years": 1, "shift": -8},
+      {"max_years": 2, "shift": -3},
+      {"max_years": 5, "shift": 0},
+      {"max_years": null, "shift": 2}
+    ],
+    "critical_role_shift_pts": 4
+  },
+
+  "raise_model": {
+    "standard_cap_pct": 10,
+    "exception_cap_pct": 15,
+    "below_min_buffer_pct": 2,
+    "equity_flag_adjustment_pct": 4,
+    "long_cycle_months": 18,
+    "high_performer_tiers": ["Top", "High"],
+    "significant_gap_pts": 8
+  },
+
+  "flight_risk": {
+    "weights": {
+      "comp_position": 0.28,
+      "compa_ratio_gap": 0.12,
+      "time_since_raise": 0.15,
+      "performance_pay_mismatch": 0.15,
+      "tenure_curve": 0.10,
+      "market_demand": 0.10,
+      "retention_notes": 0.10
+    },
+    "bands": {"low_max": 30, "moderate_max": 55, "high_max": 78}
+  },
+
+  "equity": {
+    "_comment": "Peer group = same department + job_title + level. Flags Solid-or-better performers paid materially below their peer group's average compa-ratio.",
+    "gap_threshold_pts": 8,
+    "min_group_size": 2
+  },
+
+  "compa_ratio_low_threshold": 0.90,
+  "compa_ratio_high_threshold": 1.15,
+
+  "scenarios": {
+    "no_budget": {"budget": null, "tier_cutoff": null, "max_individual_pct": 15},
+    "conservative": {"budget_multiplier": 0.5, "tier_cutoff": 2, "max_individual_pct": 7},
+    "moderate": {"budget_multiplier": 0.85, "tier_cutoff": 4, "max_individual_pct": 12},
+    "aggressive": {"budget_multiplier": 1.25, "tier_cutoff": 6, "max_individual_pct": 15}
+  }
+}
