@@ -46,12 +46,15 @@ python org_chart_converter.py path/to/report.xlsx -o wireframe.xlsx
 
 A workbook with two sheets:
 
-- **Org Chart** — each person on their own row, placed in the column that
-  matches their depth in the hierarchy, so the layout naturally "staircases"
-  down and right the deeper you go. Rows carry Excel outline levels, so you
-  can use Excel's native row grouping (the `+`/`-` buttons in the left
-  margin, or *Data > Group*) to collapse or expand entire teams. Names with
-  direct reports are bolded so leadership stands out at a glance.
+- **Org Chart** — column A always shows the row's person, no matter their
+  depth, so you can scan or filter on a single column. From column B on, that
+  same name is placed in whichever column matches their depth in the
+  hierarchy, so the layout naturally "staircases" down and right the deeper
+  you go. Rows carry Excel outline levels, so you can use Excel's native row
+  grouping (the `+`/`-` buttons in the left margin, or *Data > Group*) to
+  collapse or expand entire teams. Names with direct reports are bolded so
+  leadership stands out at a glance. Any metadata columns from the source
+  file (Title, Department, etc.) follow after the staircase.
 - **Summary** — row counts, total people found, number of top-level roots,
   max depth, and any data warnings (e.g. someone listed under two different
   managers in the source file).

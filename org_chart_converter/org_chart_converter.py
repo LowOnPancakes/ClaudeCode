@@ -213,15 +213,25 @@ def write_org_chart(result, roots, out_path, source_name=""):
     depth = max_depth(result, roots)
     staircase_cols = depth + 1
     attr_headers = result.attr_headers
-    total_cols = staircase_cols + len(attr_headers)
+    # Column 1 is a fixed "Employee" column (always shows this row's person,
+    # regardless of which staircase column their depth puts them in).
+    # Columns 2..staircase_cols+1 are the staircase itself.
+    name_col = 1
+    staircase_start = 2
+    attrs_start = staircase_start + staircase_cols
+    total_cols = staircase_cols + 1 + len(attr_headers)
 
-    ws.cell(row=1, column=1, value=f"Org chart{(' - ' + source_name) if source_name else ''}")
+    ws.cell(row=1, column=name_col, value="Employee")
     ws["A1"].font = HEADER_FONT
-    for col in range(1, staircase_cols + 1):
+    ws["A1"].fill = HEADER_FILL
+    ws.cell(row=1, column=staircase_start,
+             value=f"Org chart{(' - ' + source_name) if source_name else ''}")
+    for col in range(staircase_start, attrs_start):
         ws.cell(row=1, column=col).fill = HEADER_FILL
+    ws.cell(row=1, column=staircase_start).font = HEADER_FONT
 
     for i, label in enumerate(attr_headers):
-        cell = ws.cell(row=1, column=staircase_cols + 1 + i, value=label)
+        cell = ws.cell(row=1, column=attrs_start + i, value=label)
         cell.font = HEADER_FONT
         cell.fill = HEADER_FILL
 
@@ -232,6 +242,7 @@ def write_org_chart(result, roots, out_path, source_name=""):
     def write_node(name, col, depth_level):
         nonlocal current_row
         r = current_row
+        ws.cell(row=r, column=name_col, value=name).font = Font(bold=(depth_level == 0))
         cell = ws.cell(row=r, column=col, value=name)
         children = result.children_of.get(name, [])
         if depth_level == 0:
@@ -247,19 +258,20 @@ def write_org_chart(result, roots, out_path, source_name=""):
         attrs = result.attributes.get(name)
         if attrs:
             for i, header in enumerate(attr_headers):
-                ws.cell(row=r, column=staircase_cols + 1 + i, value=attrs.get(header, ""))
+                ws.cell(row=r, column=attrs_start + i, value=attrs.get(header, ""))
 
         current_row += 1
         for child in children:
             write_node(child, col + 1, depth_level + 1)
 
     for root in roots:
-        write_node(root, 1, 0)
+        write_node(root, staircase_start, 0)
 
     ws.sheet_properties.outlinePr.summaryBelow = False
-    for col in range(1, total_cols + 1):
+    ws.column_dimensions[get_column_letter(name_col)].width = 26
+    for col in range(staircase_start, total_cols + 1):
         ws.column_dimensions[get_column_letter(col)].width = 26
-    ws.freeze_panes = "A2"
+    ws.freeze_panes = "B2"
 
     # Summary sheet
     summary = wb.create_sheet("Summary")
