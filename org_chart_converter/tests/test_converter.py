@@ -83,3 +83,47 @@ def test_case_insensitive_filler(tmp_path):
 
     assert "Employee Y" in roots
     assert result.parent_of["Employee W"] == "Manager Z"
+
+
+def test_metadata_columns_after_employee(tmp_path):
+    header = ["Manager - Level 1", "Employee", "Title", "Department"]
+    rows = [
+        ("All", "All", None, None),
+        ("N/A", "Bob Lyons", "CEO", "Executive"),
+        ("Bob Lyons", "Ben Reich", "CFO", "Finance"),
+    ]
+    path = make_workbook(tmp_path, rows, header=header)
+    result = parse_workbook(path)
+    roots = build_forest(result)
+
+    assert result.attr_headers == ["Title", "Department"]
+    assert roots == ["Bob Lyons"]
+    assert result.attributes["Bob Lyons"] == {"Title": "CEO", "Department": "Executive"}
+    assert result.attributes["Ben Reich"] == {"Title": "CFO", "Department": "Finance"}
+    # rollup row (Employee="All") must not pollute attributes
+    assert "All" not in result.attributes
+
+
+def test_no_metadata_columns_still_works(tmp_path):
+    # Old-style file: Employee is the last column, nothing trailing it.
+    rows = [
+        ("N/A", "Bob Lyons"),
+        ("Bob Lyons", "Ben Reich"),
+    ]
+    path = make_workbook(tmp_path, rows)
+    result = parse_workbook(path)
+    roots = build_forest(result)
+
+    assert result.attr_headers == []
+    assert result.attributes == {}
+    assert roots == ["Bob Lyons"]
+
+
+def test_missing_employee_header_raises(tmp_path):
+    rows = [("N/A", "Bob Lyons")]
+    path = make_workbook(tmp_path, rows, header=["Manager - Level 1", "Person"])
+    try:
+        parse_workbook(path)
+        assert False, "expected ValueError"
+    except ValueError as e:
+        assert "Employee" in str(e)

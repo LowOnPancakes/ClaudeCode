@@ -40,22 +40,29 @@ def count_descendants(children_of, name):
     return total
 
 
-def render_node_html(name, children_of, depth=0):
+def render_node_html(name, children_of, attributes, depth=0):
     kids = children_of.get(name, [])
     safe_name = escape(name)
     data_name = escape(name.lower())
 
+    attrs = attributes.get(name)
+    tooltip = ""
+    if attrs:
+        parts = [f"{k}: {v}" for k, v in attrs.items() if v not in (None, "")]
+        if parts:
+            tooltip = f' title="{escape(" | ".join(parts))}"'
+
     if not kids:
-        return f'<div class="node leaf" data-name="{data_name}">{safe_name}</div>'
+        return f'<div class="node leaf" data-name="{data_name}"{tooltip}>{safe_name}</div>'
 
     count = count_descendants(children_of, name)
     badge = f'{count} report{"s" if count != 1 else ""}'
-    inner = "".join(render_node_html(k, children_of, depth + 1) for k in kids)
+    inner = "".join(render_node_html(k, children_of, attributes, depth + 1) for k in kids)
     open_attr = " open" if depth == 0 else ""
     return (
         f'<div class="node manager" data-name="{data_name}">'
         f"<details{open_attr}>"
-        f'<summary>{safe_name} <span class="badge">{badge}</span></summary>'
+        f'<summary{tooltip}>{safe_name} <span class="badge">{badge}</span></summary>'
         f'<div class="children">{inner}</div>'
         f"</details></div>"
     )
@@ -83,7 +90,9 @@ def convert():
         return render_template("index.html", error=f"Couldn't process that file: {e}")
 
     depth = max_depth(result, roots)
-    tree_html = "".join(render_node_html(r, result.children_of, depth=0) for r in roots)
+    tree_html = "".join(
+        render_node_html(r, result.children_of, result.attributes, depth=0) for r in roots
+    )
 
     buf = io.BytesIO()
     write_org_chart(result, roots, buf, source_name=file.filename)
@@ -99,6 +108,7 @@ def convert():
         "roots": len(roots),
         "depth": depth + 1,
         "warnings": result.warnings,
+        "attr_headers": result.attr_headers,
     }
     return render_template(
         "index.html",

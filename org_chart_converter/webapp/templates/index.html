@@ -112,6 +112,11 @@
     font-size: 0.85rem;
     font-weight: 600;
   }
+  .hint {
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin: 0 0 16px;
+  }
   .warnings {
     font-size: 0.85rem;
     color: #b45309;
@@ -204,7 +209,13 @@
       <span class="chip">{{ stats.roots }} top-level root(s)</span>
       <span class="chip">{{ stats.depth }} levels deep</span>
       <span class="chip">{{ stats.rows_used }}/{{ stats.rows_read }} rows used</span>
+      {% if stats.attr_headers %}
+        <span class="chip">+ {{ stats.attr_headers|join(", ") }}</span>
+      {% endif %}
     </div>
+    {% if stats.attr_headers %}
+      <p class="hint">Hover a name in the tree below to see its {{ stats.attr_headers|join(", ") }}.</p>
+    {% endif %}
     {% if stats.warnings %}
       <div class="warnings">
         {{ stats.warnings|length }} data warning(s):

@@ -1,25 +1,33 @@
 #!/usr/bin/env python3
 """
-Convert a flat "Manager - Level N / Employee" Excel export into a
-staircase-style org chart workbook with collapsible leadership grouping.
+Convert a flat "Manager - Level N / Employee [/ metadata...]" Excel export
+into a staircase-style org chart workbook with collapsible leadership
+grouping.
 
-Expected input shape (header row + data rows), any number of level columns:
+Expected input shape (header row + data rows), any number of level columns,
+and any number of trailing metadata columns after "Employee":
 
-    Manager - Level 1 | Manager - Level 2 | ... | Employee
-    All               | All               | ... | All
-    N/A               | All               | ... | All
-    N/A               | N/A               | ... | Aprille Tiedra
-    Bob Lyons         | N/A               | ... | Ben Reich
-    Bob Lyons         | Ben Reich         | ... | Caleb Salazar
+    Manager - Level 1 | ... | Employee       | Title  | Department | ...
+    All               | ... | All            |        |            |
+    N/A               | ... | Aprille Tiedra | Coord. | Support    | ...
+    Bob Lyons         | ... | Ben Reich      | VP     | Sales      | ...
     ...
 
 Rules:
-  - The last column holds an individual name (a "leaf" for that row).
-  - All other columns form that person's manager chain, read left to right.
-  - "All" and "N/A" (any case) and blank cells are filler/placeholder values,
-    not real names, and are ignored.
-  - Rows whose last column is filler are rollup/summary rows and are skipped;
-    they carry no information not already present in other rows.
+  - The column headed exactly "Employee" (case-insensitive) holds an
+    individual name for that row - a "leaf" for that row's manager chain.
+  - Every column BEFORE "Employee" forms that person's manager chain, read
+    left to right. Any number of these columns is supported.
+  - Every column AFTER "Employee" is treated as a metadata field for that
+    person (Title, Department, Employment type, Entity, ...) - whatever
+    columns are present, in whatever order, get carried through to the
+    output automatically. No fixed set of fields is assumed.
+  - "All" and "N/A" (any case) and blank cells are filler/placeholder values
+    in the manager-chain columns, not real names, and are ignored.
+  - Rows whose "Employee" cell is filler are rollup/summary rows and are
+    skipped; they carry no reporting-line information not already present
+    in other rows (their metadata columns are typically junk/placeholder
+    values on those synthetic rows, so they're skipped too).
   - A row's parent is the last real name in its manager chain. If the chain
     is empty, the person is a root (top of the org / no manager in this data).
 
@@ -33,6 +41,7 @@ from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
 
 FILLER = {"", "all", "n/a", "na", "none"}
+EMPLOYEE_HEADER = "employee"
 
 
 def is_filler(value):
@@ -53,6 +62,8 @@ class ParseResult:
         self.warnings = []
         self.rows_read = 0
         self.rows_used = 0
+        self.attr_headers = []    # ordered metadata column labels (may be empty)
+        self.attributes = {}      # name -> {attr_header: value}
 
     def add_node(self, name):
         self.all_names.add(name)
@@ -76,6 +87,25 @@ class ParseResult:
                 f'"{existing}" and "{parent}" (kept "{existing}").'
             )
 
+    def set_attributes(self, name, attrs):
+        if not attrs:
+            return
+        existing = self.attributes.get(name)
+        if existing is None:
+            self.attributes[name] = attrs
+        elif existing != attrs:
+            self.warnings.append(
+                f'"{name}" has conflicting metadata across rows '
+                f"(kept the first occurrence)."
+            )
+
+
+def _find_employee_column(header):
+    for i, cell in enumerate(header):
+        if cell is not None and str(cell).strip().lower() == EMPLOYEE_HEADER:
+            return i
+    return None
+
 
 def parse_workbook(path, sheet_name=None):
     wb = load_workbook(path, data_only=True)
@@ -92,14 +122,31 @@ def parse_workbook(path, sheet_name=None):
             "columns plus a final name column)."
         )
 
+    employee_idx = _find_employee_column(header)
+    if employee_idx is None:
+        raise ValueError(
+            'Could not find a column headed "Employee" in the header row. '
+            "That column marks the split between the manager-chain columns "
+            "and any per-person metadata columns."
+        )
+
+    attr_headers = [
+        str(h).strip() for h in header[employee_idx + 1:] if h is not None and str(h).strip()
+    ]
+    n_attrs = len(attr_headers)
+
     result = ParseResult()
+    result.attr_headers = attr_headers
 
     for row in data_rows:
         if row is None or all(c is None for c in row):
             continue
         result.rows_read += 1
 
-        *level_cells, leaf_cell = row
+        level_cells = row[:employee_idx]
+        leaf_cell = row[employee_idx]
+        attr_cells = row[employee_idx + 1:employee_idx + 1 + n_attrs]
+
         if is_filler(leaf_cell):
             continue  # rollup/summary row, no new information
 
@@ -108,6 +155,13 @@ def parse_workbook(path, sheet_name=None):
 
         parent = chain[-1] if chain else None
         result.set_parent(leaf_name, parent)
+
+        if attr_headers:
+            attrs = {
+                h: (v if v is not None else "")
+                for h, v in zip(attr_headers, attr_cells)
+            }
+            result.set_attributes(leaf_name, attrs)
 
         # Also register manager-to-manager links within the chain itself,
         # as a fallback for data where a manager never gets its own leaf row.
@@ -157,11 +211,20 @@ def write_org_chart(result, roots, out_path, source_name=""):
     ws.title = "Org Chart"
 
     depth = max_depth(result, roots)
+    staircase_cols = depth + 1
+    attr_headers = result.attr_headers
+    total_cols = staircase_cols + len(attr_headers)
+
     ws.cell(row=1, column=1, value=f"Org chart{(' - ' + source_name) if source_name else ''}")
     ws["A1"].font = HEADER_FONT
-    ws["A1"].fill = HEADER_FILL
-    for col in range(1, depth + 2):
+    for col in range(1, staircase_cols + 1):
         ws.cell(row=1, column=col).fill = HEADER_FILL
+
+    for i, label in enumerate(attr_headers):
+        cell = ws.cell(row=1, column=staircase_cols + 1 + i, value=label)
+        cell.font = HEADER_FONT
+        cell.fill = HEADER_FILL
+
     ws.row_dimensions[1].height = 22
 
     current_row = 2
@@ -181,6 +244,11 @@ def write_org_chart(result, roots, out_path, source_name=""):
         if depth_level > 0:
             ws.row_dimensions[r].outline_level = min(depth_level, 7)
 
+        attrs = result.attributes.get(name)
+        if attrs:
+            for i, header in enumerate(attr_headers):
+                ws.cell(row=r, column=staircase_cols + 1 + i, value=attrs.get(header, ""))
+
         current_row += 1
         for child in children:
             write_node(child, col + 1, depth_level + 1)
@@ -189,7 +257,7 @@ def write_org_chart(result, roots, out_path, source_name=""):
         write_node(root, 1, 0)
 
     ws.sheet_properties.outlinePr.summaryBelow = False
-    for col in range(1, depth + 2):
+    for col in range(1, total_cols + 1):
         ws.column_dimensions[get_column_letter(col)].width = 26
     ws.freeze_panes = "A2"
 
@@ -206,6 +274,7 @@ def write_org_chart(result, roots, out_path, source_name=""):
         ("Total people", len(result.all_names)),
         ("Top-level roots", len(roots)),
         ("Max depth", depth + 1),
+        ("Metadata columns detected", ", ".join(attr_headers) if attr_headers else "(none)"),
         ("Data warnings", len(result.warnings)),
     ]
     for i, (k, v) in enumerate(stats, start=2):
@@ -249,6 +318,8 @@ def main():
     print(f"Read {result.rows_read} rows, used {result.rows_used}.")
     print(f"Found {len(result.all_names)} people, {len(roots)} top-level root(s), "
           f"max depth {max_depth(result, roots) + 1}.")
+    if result.attr_headers:
+        print(f"Metadata columns carried through: {', '.join(result.attr_headers)}")
     if result.warnings:
         print(f"{len(result.warnings)} data warning(s) - see the Summary sheet.")
     print(f"Wrote {output_path}")
