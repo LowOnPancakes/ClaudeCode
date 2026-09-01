@@ -33,6 +33,51 @@ gunicorn -w 4 -b 0.0.0.0:8000 app:app
 
 Then share `http://<that-machine's-address>:8000` with the team.
 
+### Deploying on a Linux VPS (CentOS/RHEL/Rocky) with systemd
+
+`deploy/` has everything for this: a systemd unit, an install script, and an
+nginx reverse-proxy config. On the server, as root:
+
+```bash
+git clone <this-repo-url>
+cd <repo>/org_chart_converter
+sudo bash webapp/deploy/install_centos.sh
+```
+
+That script:
+- installs Python/pip if missing
+- creates a dedicated, no-login `orgchart` system user
+- copies the app to `/opt/org-chart-webapp`, builds a virtualenv there, and
+  installs dependencies + gunicorn
+- installs and starts `org-chart-webapp.service`, listening on
+  `127.0.0.1:8000` (not exposed externally yet)
+
+Then put nginx in front of it so the team can actually reach it:
+
+```bash
+sudo cp webapp/deploy/nginx-org-chart.conf /etc/nginx/conf.d/org-chart.conf
+sudo sed -i 's/orgchart.example.com/your.actual.domain/' /etc/nginx/conf.d/org-chart.conf
+sudo nginx -t && sudo systemctl reload nginx
+sudo firewall-cmd --permanent --add-service=http && sudo firewall-cmd --reload
+```
+
+(Swap `--add-service=http` for `--add-service=https` once you've set up TLS
+— see the note at the bottom of `nginx-org-chart.conf`.)
+
+To redeploy after a code change: `git pull` on the server, then re-run
+`sudo bash webapp/deploy/install_centos.sh` — it overwrites `/opt/org-chart-webapp`
+and restarts the service. Useful commands afterward:
+
+```bash
+sudo systemctl status org-chart-webapp   # is it running
+sudo journalctl -u org-chart-webapp -f   # tail its logs
+sudo systemctl restart org-chart-webapp  # restart after a manual change
+```
+
+This was written and syntax-checked in a sandbox without a real CentOS
+target to install onto, so treat the first run on your actual server as a
+verification pass, not a guaranteed no-touch install.
+
 ### Docker
 
 A `Dockerfile` is included. Build it from the `org_chart_converter/` directory
