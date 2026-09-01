@@ -169,6 +169,14 @@ def test_format_b_drops_id_and_top_level_leader_columns(tmp_path):
         assert forbidden not in result.attr_headers
 
 
+def test_format_b_drops_role_state(tmp_path):
+    path = make_workbook(tmp_path, [BOB_ROW], header=FORMAT_B_HEADER)
+    result = parse_workbook(path)
+
+    assert "role_state" not in result.attr_headers
+    assert "role_state" not in result.attributes["Bob Lyons"]
+
+
 def test_format_b_priority_columns_land_last_in_requested_order(tmp_path):
     # Regression test: "current_entity" (underscored) must match the
     # "current entity" normalized header, not silently fall through to the
@@ -178,7 +186,7 @@ def test_format_b_priority_columns_land_last_in_requested_order(tmp_path):
 
     assert result.attr_headers[-3:] == ["department", "current_entity", "title"]
     # unrequested leftover columns are still carried through, just earlier
-    assert set(result.attr_headers[:-3]) == {"role_state", "employment_type"}
+    assert set(result.attr_headers[:-3]) == {"employment_type"}
     assert result.attributes["Bob Lyons"]["current_entity"] == "Liquid Web LLC"
     assert result.attributes["Bob Lyons"]["department"] == "Executive"
     assert result.attributes["Bob Lyons"]["title"] == "CEO"

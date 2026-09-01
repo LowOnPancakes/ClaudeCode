@@ -36,7 +36,7 @@ FORMAT B - one row per employee, with named ancestor columns going upward:
     end the chain early (that generation has no more managers above them).
   - "top_level_leader" is dropped - it's redundant with whichever chain
     column already holds the top of the org.
-  - Any column with "_id" in its name is dropped.
+  - Any column with "_id" in its name is dropped, and so is "role_state".
   - "department", "current_entity", and "title" become metadata columns at
     the end of the output, in that order. Any other leftover column is
     still carried through (placed before those three) rather than silently
@@ -55,6 +55,7 @@ from openpyxl.utils import get_column_letter
 FILLER = {"", "all", "n/a", "na", "none"}
 EMPLOYEE_HEADER = "employee"
 FORMAT_B_PRIORITY_TRAILING = ["department", "current_entity", "title"]
+FORMAT_B_DROPPED_COLUMNS = ["role_state"]
 
 
 def is_filler(value):
@@ -223,8 +224,11 @@ def _parse_format_b(header, norm_headers, data_rows):
 
     top_leader_idx = _find_column(norm_headers, "top level leader")
     id_indices = {i for i, h in enumerate(header) if h is not None and "_id" in str(h).lower()}
+    dropped_indices = {
+        _find_column(norm_headers, _normalize_header(name)) for name in FORMAT_B_DROPPED_COLUMNS
+    }
 
-    excluded = {employee_idx, top_leader_idx} | id_indices | set(chain_indices)
+    excluded = {employee_idx, top_leader_idx} | id_indices | dropped_indices | set(chain_indices)
     excluded.discard(None)
 
     priority_indices = []
