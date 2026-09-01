@@ -127,3 +127,67 @@ def test_missing_employee_header_raises(tmp_path):
         assert False, "expected ValueError"
     except ValueError as e:
         assert "Employee" in str(e)
+
+
+# employee_id, employee_legal_name, role_state, title, employment_type,
+# department_id, department, current_entity, manager_id, manager_legal_name,
+# manager_level_2, top_level_leader
+FORMAT_B_HEADER = [
+    "employee_id", "employee_legal_name", "role_state", "title",
+    "employment_type", "department_id", "department", "current_entity",
+    "manager_id", "manager_legal_name", "manager_level_2", "top_level_leader",
+]
+
+BOB_ROW = ("E1", "Bob Lyons", "Active", "CEO", "Salaried",
+           "D1", "Executive", "Liquid Web LLC",
+           None, None, None, "Bob Lyons")
+BEN_ROW = ("E2", "Ben Reich", "Active", "CFO", "Salaried",
+           "D1", "Executive", "Liquid Web LLC",
+           "E1", "Bob Lyons", None, "Bob Lyons")
+CALEB_ROW = ("E3", "Caleb Salazar", "Active", "VP", "Salaried",
+             "D2", "Finance", "Liquid Web LLC",
+             "E2", "Ben Reich", "Bob Lyons", "Bob Lyons")
+
+
+def test_format_b_basic_hierarchy(tmp_path):
+    path = make_workbook(tmp_path, [BOB_ROW, BEN_ROW, CALEB_ROW], header=FORMAT_B_HEADER)
+    result = parse_workbook(path)
+    roots = build_forest(result)
+
+    assert roots == ["Bob Lyons"]
+    assert result.children_of["Bob Lyons"] == ["Ben Reich"]
+    assert result.children_of["Ben Reich"] == ["Caleb Salazar"]
+    assert result.parent_of["Caleb Salazar"] == "Ben Reich"
+    assert not result.warnings
+
+
+def test_format_b_drops_id_and_top_level_leader_columns(tmp_path):
+    path = make_workbook(tmp_path, [BOB_ROW], header=FORMAT_B_HEADER)
+    result = parse_workbook(path)
+
+    for forbidden in ("employee_id", "department_id", "manager_id", "top_level_leader"):
+        assert forbidden not in result.attr_headers
+
+
+def test_format_b_priority_columns_land_last_in_requested_order(tmp_path):
+    # Regression test: "current_entity" (underscored) must match the
+    # "current entity" normalized header, not silently fall through to the
+    # leftover bucket ahead of department/title.
+    path = make_workbook(tmp_path, [BOB_ROW], header=FORMAT_B_HEADER)
+    result = parse_workbook(path)
+
+    assert result.attr_headers[-3:] == ["department", "current_entity", "title"]
+    # unrequested leftover columns are still carried through, just earlier
+    assert set(result.attr_headers[:-3]) == {"role_state", "employment_type"}
+    assert result.attributes["Bob Lyons"]["current_entity"] == "Liquid Web LLC"
+    assert result.attributes["Bob Lyons"]["department"] == "Executive"
+    assert result.attributes["Bob Lyons"]["title"] == "CEO"
+
+
+def test_format_b_root_has_blank_manager_chain(tmp_path):
+    path = make_workbook(tmp_path, [BOB_ROW], header=FORMAT_B_HEADER)
+    result = parse_workbook(path)
+    roots = build_forest(result)
+
+    assert roots == ["Bob Lyons"]
+    assert result.parent_of["Bob Lyons"] is None

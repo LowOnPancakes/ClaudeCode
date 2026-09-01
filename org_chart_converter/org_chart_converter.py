@@ -1,40 +1,52 @@
 #!/usr/bin/env python3
 """
-Convert a flat "Manager - Level N / Employee [/ metadata...]" Excel export
-into a staircase-style org chart workbook with collapsible leadership
-grouping.
+Convert an org-structure Excel export into a staircase-style org chart
+workbook with collapsible leadership grouping. Two source shapes are
+auto-detected from the header row:
 
-Expected input shape (header row + data rows), any number of level columns,
-and any number of trailing metadata columns after "Employee":
+FORMAT A - one row per manager-chain scope, "Employee" as the leaf column:
 
     Manager - Level 1 | ... | Employee       | Title  | Department | ...
     All               | ... | All            |        |            |
     N/A               | ... | Aprille Tiedra | Coord. | Support    | ...
     Bob Lyons         | ... | Ben Reich      | VP     | Sales      | ...
-    ...
 
-Rules:
   - The column headed exactly "Employee" (case-insensitive) holds an
-    individual name for that row - a "leaf" for that row's manager chain.
-  - Every column BEFORE "Employee" forms that person's manager chain, read
-    left to right. Any number of these columns is supported.
-  - Every column AFTER "Employee" is treated as a metadata field for that
-    person (Title, Department, Employment type, Entity, ...) - whatever
-    columns are present, in whatever order, get carried through to the
-    output automatically. No fixed set of fields is assumed.
-  - "All" and "N/A" (any case) and blank cells are filler/placeholder values
-    in the manager-chain columns, not real names, and are ignored.
-  - Rows whose "Employee" cell is filler are rollup/summary rows and are
-    skipped; they carry no reporting-line information not already present
-    in other rows (their metadata columns are typically junk/placeholder
-    values on those synthetic rows, so they're skipped too).
-  - A row's parent is the last real name in its manager chain. If the chain
-    is empty, the person is a root (top of the org / no manager in this data).
+    individual name for that row. Every column before it forms that
+    person's manager chain, read left to right (any number of columns).
+    Every column after it is a per-person metadata field, carried through
+    to the output as-is, in source order.
+  - "All"/"N/A" (any case) and blank cells are filler in the chain columns.
+    Rows whose "Employee" cell is filler are rollup/summary rows and are
+    skipped - they add no reporting-line information not already present
+    elsewhere, and their metadata columns are placeholder junk.
+  - A row's parent is the last real name in its chain; an empty chain means
+    the person is a root.
+
+FORMAT B - one row per employee, with named ancestor columns going upward:
+
+    employee_id | employee_legal_name | title | department_id | department |
+    current_entity | manager_id | manager_legal_name | manager_level_2 | ...
+    | top_level_leader
+
+  - "employee_legal_name" is that row's person, renamed "Employee" and put
+    first in the output.
+  - "manager_legal_name" is their direct manager; "manager_level_2",
+    "manager_level_3", etc. are each one generation further up. Blank cells
+    end the chain early (that generation has no more managers above them).
+  - "top_level_leader" is dropped - it's redundant with whichever chain
+    column already holds the top of the org.
+  - Any column with "_id" in its name is dropped.
+  - "department", "current_entity", and "title" become metadata columns at
+    the end of the output, in that order. Any other leftover column is
+    still carried through (placed before those three) rather than silently
+    dropped.
 
 Usage:
     python org_chart_converter.py INPUT.xlsx [-o OUTPUT.xlsx]
 """
 import argparse
+import re
 import sys
 from openpyxl import load_workbook, Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
@@ -42,6 +54,7 @@ from openpyxl.utils import get_column_letter
 
 FILLER = {"", "all", "n/a", "na", "none"}
 EMPLOYEE_HEADER = "employee"
+FORMAT_B_PRIORITY_TRAILING = ["department", "current_entity", "title"]
 
 
 def is_filler(value):
@@ -52,6 +65,10 @@ def is_filler(value):
 
 def clean(value):
     return str(value).strip()
+
+
+def _normalize_header(value):
+    return re.sub(r"[\s_]+", " ", str(value or "")).strip().lower()
 
 
 class ParseResult:
@@ -107,6 +124,13 @@ def _find_employee_column(header):
     return None
 
 
+def _find_column(norm_headers, target):
+    for i, h in enumerate(norm_headers):
+        if h == target:
+            return i
+    return None
+
+
 def parse_workbook(path, sheet_name=None):
     wb = load_workbook(path, data_only=True)
     ws = wb[sheet_name] if sheet_name else wb.active
@@ -123,13 +147,20 @@ def parse_workbook(path, sheet_name=None):
         )
 
     employee_idx = _find_employee_column(header)
-    if employee_idx is None:
-        raise ValueError(
-            'Could not find a column headed "Employee" in the header row. '
-            "That column marks the split between the manager-chain columns "
-            "and any per-person metadata columns."
-        )
+    if employee_idx is not None:
+        return _parse_format_a(header, data_rows, employee_idx)
 
+    norm_headers = [_normalize_header(h) for h in header]
+    if "employee legal name" in norm_headers:
+        return _parse_format_b(header, norm_headers, data_rows)
+
+    raise ValueError(
+        'Could not find a column headed "Employee" or "employee_legal_name" '
+        "in the header row - unrecognized report format."
+    )
+
+
+def _parse_format_a(header, data_rows, employee_idx):
     attr_headers = [
         str(h).strip() for h in header[employee_idx + 1:] if h is not None and str(h).strip()
     ]
@@ -167,6 +198,76 @@ def parse_workbook(path, sheet_name=None):
         # as a fallback for data where a manager never gets its own leaf row.
         for i in range(len(chain) - 1):
             result.set_parent(chain[i + 1], chain[i])
+
+        result.rows_used += 1
+
+    return result
+
+
+def _parse_format_b(header, norm_headers, data_rows):
+    employee_idx = _find_column(norm_headers, "employee legal name")
+
+    # Manager chain, closest-to-furthest from the employee: "manager_legal_name"
+    # is generation 1, "manager_level_2" is generation 2, etc.
+    chain_idx = []
+    direct_manager_idx = _find_column(norm_headers, "manager legal name")
+    if direct_manager_idx is not None:
+        chain_idx.append((1, direct_manager_idx))
+    level_re = re.compile(r"^manager level (\d+)$")
+    for i, h in enumerate(norm_headers):
+        m = level_re.match(h)
+        if m:
+            chain_idx.append((int(m.group(1)), i))
+    chain_idx.sort(key=lambda pair: pair[0])
+    chain_indices = [i for _, i in chain_idx]
+
+    top_leader_idx = _find_column(norm_headers, "top level leader")
+    id_indices = {i for i, h in enumerate(header) if h is not None and "_id" in str(h).lower()}
+
+    excluded = {employee_idx, top_leader_idx} | id_indices | set(chain_indices)
+    excluded.discard(None)
+
+    priority_indices = []
+    for target in FORMAT_B_PRIORITY_TRAILING:
+        idx = _find_column(norm_headers, _normalize_header(target))
+        if idx is not None and idx not in excluded:
+            priority_indices.append(idx)
+    other_indices = [
+        i for i in range(len(header))
+        if i not in excluded and i not in priority_indices
+    ]
+    attr_indices = other_indices + priority_indices
+    attr_headers = [str(header[i]).strip() for i in attr_indices]
+
+    result = ParseResult()
+    result.attr_headers = attr_headers
+
+    for row in data_rows:
+        if row is None or all(c is None for c in row):
+            continue
+        result.rows_read += 1
+
+        employee_cell = row[employee_idx]
+        if is_filler(employee_cell):
+            continue
+
+        employee_name = clean(employee_cell)
+        chain = [clean(row[i]) for i in chain_indices if not is_filler(row[i])]
+
+        parent = chain[0] if chain else None
+        result.set_parent(employee_name, parent)
+
+        # Manager-to-manager links, as a fallback for a manager who never
+        # gets their own "employee_legal_name" row in this export.
+        for i in range(len(chain) - 1):
+            result.set_parent(chain[i], chain[i + 1])
+
+        if attr_headers:
+            attrs = {
+                h: (row[i] if row[i] is not None else "")
+                for h, i in zip(attr_headers, attr_indices)
+            }
+            result.set_attributes(employee_name, attrs)
 
         result.rows_used += 1
 

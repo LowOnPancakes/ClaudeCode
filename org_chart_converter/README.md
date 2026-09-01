@@ -1,13 +1,13 @@
 # Org Chart Converter
 
-Converts a flat "Manager - Level N / Employee" Excel export into a clean,
-staircase-style org chart workbook — one column per reporting level, with
-collapsible leadership groups built in.
+Converts an org-structure Excel export into a clean, staircase-style org
+chart workbook — one column per reporting level, with collapsible leadership
+groups built in. Two source shapes are auto-detected from the header row.
 
 ## Input format
 
-The script expects a worksheet shaped like this (any number of manager-level
-columns is fine, the last column is always the individual's name):
+**Format A** — one row per manager-chain scope, ending in an "Employee"
+column (any number of manager-level columns is fine):
 
 | Manager - Level 1 | Manager - Level 2 | ... | Employee       |
 |--------------------|--------------------|-----|----------------|
@@ -17,15 +17,39 @@ columns is fine, the last column is always the individual's name):
 | Bob Lyons          | N/A                | ... | Ben Reich      |
 | Bob Lyons          | Ben Reich          | ... | Caleb Salazar  |
 
-Rules the parser uses:
-
-- The **last column** holds one person's name for that row.
-- Every other column is that person's manager chain, read left to right.
+- The column headed exactly **"Employee"** holds one person's name for that
+  row. Every column before it is that person's manager chain, read left to
+  right. Every column after it is a per-person metadata field (Title,
+  Department, ...) carried through to the output as-is.
 - `All`, `N/A` (any case) and blank cells are placeholders and are ignored.
-- A row where the last column is a placeholder is a rollup/summary row and
-  is skipped — it doesn't add any information not already in other rows.
+- A row where "Employee" is a placeholder is a rollup/summary row and is
+  skipped — it doesn't add any information not already in other rows.
 - A person's manager is the last real name in their chain. An empty chain
   means the person is a root (top of the org, no manager in this data).
+
+**Format B** — one row per employee, with named ancestor columns going
+upward:
+
+| employee_id | employee_legal_name | title | department_id | department | current_entity | manager_id | manager_legal_name | manager_level_2 | ... | top_level_leader |
+|---|---|---|---|---|---|---|---|---|---|---|
+| E1 | Bob Lyons | CEO | D1 | Executive | Liquid Web LLC | | | | | Bob Lyons |
+| E2 | Ben Reich | CFO | D1 | Executive | Liquid Web LLC | E1 | Bob Lyons | | | Bob Lyons |
+
+- **`employee_legal_name`** is that row's person — renamed "Employee" and
+  put first in the output.
+- **`manager_legal_name`** is their direct manager; **`manager_level_2`**,
+  **`manager_level_3`**, etc. are each one generation further up. A blank
+  cell ends the chain (that generation is the top).
+- **`top_level_leader`** is dropped — it's redundant with whichever chain
+  column already holds the top of the org.
+- Any column with **`_id`** in its name is dropped.
+- **`department`**, **`current_entity`**, and **`title`** become metadata
+  columns at the end of the output, in that order. Any other leftover
+  column (e.g. `role_state`, `employment_type`) is still carried through,
+  placed right before those three, rather than silently dropped.
+
+If neither an "Employee" column nor an "employee_legal_name" column is found,
+the script raises a clear error naming what it was looking for.
 
 ## Install
 
