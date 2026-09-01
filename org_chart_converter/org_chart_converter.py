@@ -23,24 +23,28 @@ FORMAT A - one row per manager-chain scope, "Employee" as the leaf column:
   - A row's parent is the last real name in its chain; an empty chain means
     the person is a root.
 
-FORMAT B - one row per employee, with named ancestor columns going upward:
+FORMAT B - one row per employee, with named ancestor columns going upward.
+Detected by column *pattern*, not exact names, since different exports of
+this shape use different naming (e.g. "employee_legal_name" vs "employee",
+"manager_legal_name"/"manager_level_2" vs "manager_1"/"manager_2",
+"top_level_leader" vs "top_level_manager", "current_entity" vs "entity"):
 
     employee_id | employee_legal_name | title | department_id | department |
     current_entity | manager_id | manager_legal_name | manager_level_2 | ...
     | top_level_leader
 
-  - "employee_legal_name" is that row's person, renamed "Employee" and put
-    first in the output.
-  - "manager_legal_name" is their direct manager; "manager_level_2",
-    "manager_level_3", etc. are each one generation further up. Blank cells
-    end the chain early (that generation has no more managers above them).
-  - "top_level_leader" is dropped - it's redundant with whichever chain
-    column already holds the top of the org.
+  - The employee-name column (however it's labeled) is renamed "Employee"
+    and put first in the output.
+  - The direct-manager column is generation 1; "manager_level_2"/"manager_2"
+    etc. are each one generation further up, however many are present.
+    Blank cells end the chain early (that generation has no more managers).
+  - The top-level-leader-equivalent column is dropped - it's redundant with
+    whichever chain column already holds the top of the org.
   - Any column with "_id" in its name is dropped, and so is "role_state".
-  - "department", "current_entity", and "title" become metadata columns at
-    the end of the output, in that order. Any other leftover column is
-    still carried through (placed before those three) rather than silently
-    dropped.
+  - Whichever columns match "department", "current_entity"/"entity", and
+    "title" become metadata columns at the end of the output, in that
+    order. Any other leftover column is still carried through (placed
+    before those three) rather than silently dropped.
 
 Usage:
     python org_chart_converter.py INPUT.xlsx [-o OUTPUT.xlsx]
@@ -54,8 +58,19 @@ from openpyxl.utils import get_column_letter
 
 FILLER = {"", "all", "n/a", "na", "none"}
 EMPLOYEE_HEADER = "employee"
-FORMAT_B_PRIORITY_TRAILING = ["department", "current_entity", "title"]
+# Each entry is a list of synonym header names (normalized) for one trailing
+# metadata slot; the first one present in a given file is used.
+FORMAT_B_PRIORITY_TRAILING = [
+    ["department"],
+    ["current_entity", "entity"],
+    ["title"],
+]
 FORMAT_B_DROPPED_COLUMNS = ["role_state"]
+FORMAT_B_EMPLOYEE_NAMES = ["employee_legal_name", "employee"]
+FORMAT_B_DIRECT_MANAGER_NAMES = ["manager_legal_name", "manager_1"]
+FORMAT_B_TOP_LEADER_NAMES = ["top_level_leader", "top_level_manager"]
+_MANAGER_LEVEL_RE = re.compile(r"^manager level (\d+)$")
+_MANAGER_N_RE = re.compile(r"^manager (\d+)$")
 
 
 def is_filler(value):
@@ -132,6 +147,31 @@ def _find_column(norm_headers, target):
     return None
 
 
+def _find_any(norm_headers, targets):
+    """First column matching any synonym in `targets` (already normalized)."""
+    for target in targets:
+        idx = _find_column(norm_headers, target)
+        if idx is not None:
+            return idx
+    return None
+
+
+def _find_wide_format_chain(norm_headers):
+    """Locate the numbered manager-chain columns for Format B, however
+    they're named (manager_legal_name/manager_level_2/... or
+    manager_1/manager_2/...). Returns [(level, index), ...] sorted by level,
+    or [] if this header doesn't look like Format B at all."""
+    chain = {}
+    direct_idx = _find_any(norm_headers, [_normalize_header(n) for n in FORMAT_B_DIRECT_MANAGER_NAMES])
+    if direct_idx is not None:
+        chain[1] = direct_idx
+    for i, h in enumerate(norm_headers):
+        m = _MANAGER_LEVEL_RE.match(h) or _MANAGER_N_RE.match(h)
+        if m:
+            chain.setdefault(int(m.group(1)), i)
+    return sorted(chain.items())
+
+
 def parse_workbook(path, sheet_name=None):
     wb = load_workbook(path, data_only=True)
     ws = wb[sheet_name] if sheet_name else wb.active
@@ -147,12 +187,19 @@ def parse_workbook(path, sheet_name=None):
             "columns plus a final name column)."
         )
 
+    norm_headers = [_normalize_header(h) for h in header]
+
+    # Format B is detected by the *shape* of its manager-chain columns, not
+    # by the employee column's name - some exports name that column
+    # "employee" too, which would otherwise collide with Format A.
+    if _find_wide_format_chain(norm_headers):
+        return _parse_format_b(header, norm_headers, data_rows)
+
     employee_idx = _find_employee_column(header)
     if employee_idx is not None:
         return _parse_format_a(header, data_rows, employee_idx)
 
-    norm_headers = [_normalize_header(h) for h in header]
-    if "employee legal name" in norm_headers:
+    if _find_any(norm_headers, [_normalize_header(n) for n in FORMAT_B_EMPLOYEE_NAMES]) is not None:
         return _parse_format_b(header, norm_headers, data_rows)
 
     raise ValueError(
@@ -206,23 +253,20 @@ def _parse_format_a(header, data_rows, employee_idx):
 
 
 def _parse_format_b(header, norm_headers, data_rows):
-    employee_idx = _find_column(norm_headers, "employee legal name")
+    employee_idx = _find_any(norm_headers, [_normalize_header(n) for n in FORMAT_B_EMPLOYEE_NAMES])
+    if employee_idx is None:
+        raise ValueError(
+            "Found manager-chain columns but no employee-name column "
+            '(expected something like "employee_legal_name" or "employee").'
+        )
 
-    # Manager chain, closest-to-furthest from the employee: "manager_legal_name"
-    # is generation 1, "manager_level_2" is generation 2, etc.
-    chain_idx = []
-    direct_manager_idx = _find_column(norm_headers, "manager legal name")
-    if direct_manager_idx is not None:
-        chain_idx.append((1, direct_manager_idx))
-    level_re = re.compile(r"^manager level (\d+)$")
-    for i, h in enumerate(norm_headers):
-        m = level_re.match(h)
-        if m:
-            chain_idx.append((int(m.group(1)), i))
-    chain_idx.sort(key=lambda pair: pair[0])
-    chain_indices = [i for _, i in chain_idx]
+    # Manager chain, closest-to-furthest from the employee: generation 1 is
+    # the direct manager, generation 2 is their manager, and so on - however
+    # those columns happen to be named or ordered in this particular export.
+    chain_pairs = _find_wide_format_chain(norm_headers)
+    chain_indices = [i for _, i in chain_pairs]
 
-    top_leader_idx = _find_column(norm_headers, "top level leader")
+    top_leader_idx = _find_any(norm_headers, [_normalize_header(n) for n in FORMAT_B_TOP_LEADER_NAMES])
     id_indices = {i for i, h in enumerate(header) if h is not None and "_id" in str(h).lower()}
     dropped_indices = {
         _find_column(norm_headers, _normalize_header(name)) for name in FORMAT_B_DROPPED_COLUMNS
@@ -232,8 +276,8 @@ def _parse_format_b(header, norm_headers, data_rows):
     excluded.discard(None)
 
     priority_indices = []
-    for target in FORMAT_B_PRIORITY_TRAILING:
-        idx = _find_column(norm_headers, _normalize_header(target))
+    for synonyms in FORMAT_B_PRIORITY_TRAILING:
+        idx = _find_any(norm_headers, [_normalize_header(s) for s in synonyms])
         if idx is not None and idx not in excluded:
             priority_indices.append(idx)
     other_indices = [

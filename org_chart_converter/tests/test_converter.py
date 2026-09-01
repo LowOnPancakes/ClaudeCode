@@ -199,3 +199,39 @@ def test_format_b_root_has_blank_manager_chain(tmp_path):
 
     assert roots == ["Bob Lyons"]
     assert result.parent_of["Bob Lyons"] is None
+
+
+# Rippling-style naming variant: employee column literally named "employee"
+# (would otherwise collide with Format A detection), manager_1/manager_2
+# instead of manager_legal_name/manager_level_2, top_level_manager instead
+# of top_level_leader, and "entity" instead of "current_entity".
+RIPPLING_HEADER = [
+    "employee", "title", "department", "job_family", "job_level", "entity",
+    "manager_2", "manager_3", "top_level_manager", "role_state", "manager_1",
+]
+
+RIPPLING_ROOT = ("Robert Lyons", "CEO", "Executive", "Business Operations",
+                  "Level 0", "Liquid Web LLC", None, None, None, "Active", None)
+RIPPLING_CFO = ("Benjamin Reich", "CFO", "Executive", "Finance", "Level 1",
+                 "Liquid Web LLC", None, None, "Robert Lyons", "Active", "Robert Lyons")
+RIPPLING_IC = ("Aaron Bell", "Engineer", "Development", "Engineering", "Level 5",
+               "Liquid Web LLC", "Robert Lyons", None, "Robert Lyons", "Active", "Benjamin Reich")
+
+
+def test_rippling_style_naming_is_detected_as_format_b(tmp_path):
+    path = make_workbook(tmp_path, [RIPPLING_ROOT, RIPPLING_CFO, RIPPLING_IC], header=RIPPLING_HEADER)
+    result = parse_workbook(path)
+    roots = build_forest(result)
+
+    assert roots == ["Robert Lyons"]
+    assert result.parent_of["Benjamin Reich"] == "Robert Lyons"
+    assert result.parent_of["Aaron Bell"] == "Benjamin Reich"
+    assert not result.warnings
+
+    # manager_1/manager_2/top_level_manager consumed as chain, never metadata
+    for forbidden in ("manager_1", "manager_2", "manager_3", "top_level_manager", "role_state"):
+        assert forbidden not in result.attr_headers
+
+    # "entity" fills the current_entity/entity priority slot, still last
+    assert result.attr_headers[-3:] == ["department", "entity", "title"]
+    assert result.attributes["Robert Lyons"]["entity"] == "Liquid Web LLC"

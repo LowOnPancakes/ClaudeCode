@@ -28,28 +28,41 @@ column (any number of manager-level columns is fine):
   means the person is a root (top of the org, no manager in this data).
 
 **Format B** — one row per employee, with named ancestor columns going
-upward:
+upward. This shape is detected by the *pattern* of its manager-chain
+columns, not by exact names — different exports of it use different naming,
+and both are recognized automatically:
 
 | employee_id | employee_legal_name | title | department_id | department | current_entity | manager_id | manager_legal_name | manager_level_2 | ... | top_level_leader |
 |---|---|---|---|---|---|---|---|---|---|---|
 | E1 | Bob Lyons | CEO | D1 | Executive | Liquid Web LLC | | | | | Bob Lyons |
 | E2 | Ben Reich | CFO | D1 | Executive | Liquid Web LLC | E1 | Bob Lyons | | | Bob Lyons |
 
-- **`employee_legal_name`** is that row's person — renamed "Employee" and
-  put first in the output.
-- **`manager_legal_name`** is their direct manager; **`manager_level_2`**,
-  **`manager_level_3`**, etc. are each one generation further up. A blank
-  cell ends the chain (that generation is the top).
-- **`top_level_leader`** is dropped — it's redundant with whichever chain
-  column already holds the top of the org.
-- Any column with **`_id`** in its name is dropped.
-- **`department`**, **`current_entity`**, and **`title`** become metadata
-  columns at the end of the output, in that order. Any other leftover
-  column (e.g. `role_state`, `employment_type`) is still carried through,
-  placed right before those three, rather than silently dropped.
+or, equally recognized (e.g. a Rippling export):
 
-If neither an "Employee" column nor an "employee_legal_name" column is found,
-the script raises a clear error naming what it was looking for.
+| employee | title | department | entity | manager_1 | manager_2 | ... | top_level_manager | role_state |
+|---|---|---|---|---|---|---|---|---|
+| Robert Lyons | CEO | Executive | Liquid Web LLC | | | | | Active |
+| Benjamin Reich | CFO | Executive | Liquid Web LLC | Robert Lyons | | | Robert Lyons | Active |
+
+- The employee-name column (`employee_legal_name` or `employee`) is renamed
+  "Employee" and put first in the output.
+- The direct-manager column (`manager_legal_name` or `manager_1`) is
+  generation 1; `manager_level_2`/`manager_2`, `manager_level_3`/`manager_3`,
+  etc. are each one generation further up. A blank cell ends the chain (that
+  generation is the top).
+- The top-of-org column (`top_level_leader` or `top_level_manager`) is
+  dropped — it's redundant with whichever chain column already holds the
+  top of the org.
+- Any column with **`_id`** in its name is dropped, and so is `role_state`.
+- Whichever columns match **`department`**, **`current_entity`**/`entity`,
+  and **`title`** become metadata columns at the end of the output, in that
+  order. Any other leftover column (e.g. `employment_type`, `job_family`) is
+  still carried through, placed right before those three, rather than
+  silently dropped.
+
+If none of "Employee", "employee_legal_name", or a manager-chain column
+pattern is found, the script raises a clear error naming what it was
+looking for.
 
 ## Install
 
